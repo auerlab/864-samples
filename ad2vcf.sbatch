@@ -3,7 +3,6 @@
 #SBATCH --array=1-3
 #SBATCH --cpus-per-task=3
 #SBATCH --mem=1g
-#SBATCH --exclude=compute-[001-008,012]
 
 # Create array of filenames (1-based)
 # set samples=(`ls ../../SRR6990379/*.cram | cut -d / -f 4 | cut -d . -f 1`)
