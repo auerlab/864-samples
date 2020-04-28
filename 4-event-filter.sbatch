@@ -1,11 +1,9 @@
 #!/bin/csh -ef
 
-#SBATCH --array=1-864%100
-##SBATCH --cpus-per-task=3
+#SBATCH --array=1-608%100
 #SBATCH --mem=1g
-##SBATCH --exclude=compute-[001-008,012]
-#SBATCH --output=Josh-results/slurm-%j.out
-#SBATCH --error=Josh-results/slurm-%j.err
+#SBATCH --output=Josh-results/event-filter-%A_%a.out
+#SBATCH --error=Josh-results/event-filter-%A_%a.err
 
 # Dummy value for testing outside SLURM env
 if ( ! $?SLURM_ARRAY_TASK_ID ) then
@@ -13,28 +11,32 @@ if ( ! $?SLURM_ARRAY_TASK_ID ) then
 endif
 
 # Samples from Josh
-set event_dir=Josh-results/Haplo-output/3m
+set event_dir=Josh-results/Haplo-output
 cd $event_dir
-set filenames=(`ls freeze.8.*.events.dat`)
+set filenames=(`ls *.events.dat`)
 
 set filename=$filenames[$SLURM_ARRAY_TASK_ID]
 set filename_3m="3m/$filename"
 
 printf "$filename $filename_3m\n"
-exit
+
+mkdir -p 3m
 
 # (1) Remove any events < 3Mb in length.
+# Keep header on first line
 awk 'NR == 1 || $3 - $2 >= 3000000 { print $0 }' $filename > $filename_3m
-if [ $(wc -l $filename_3m) = 1 ]; then
-    rm $filename_3m
-fi
 exit
 
-# (2) Remove any events that overlap with known germ-line events as defined in the attached.
-# Sasha in Paul's lab suggests 50% reciprocal overlap as the criteria. Here is the relevant
-# bedtools command:
-bedtools intersect -a $filename_3m -b ../../hg38gains.all.autosomes.bed \
-    -wa -wb -f 0.5 -r
+if [ $(wc -l $filename_3m) = 1 ]; then
+    rm $filename_3m
+else
+    # (2) Remove any events that overlap with known germ-line events as defined in the attached.
+    # Sasha in Paul's lab suggests 50% reciprocal overlap as the criteria. Here is the relevant
+    # bedtools command:
+    bedtools intersect -a $filename_3m -b ../../hg38gains.all.autosomes.bed \
+	-wa -wb -f 0.5 -r > $filename_3m:r-nogerm.dat
+endif
+exit
 
 # (3) For any remaining events, check the "median depth" as we discussed last
 # week. Specifically, calculate the median depth at the event interval in the

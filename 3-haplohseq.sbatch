@@ -1,11 +1,9 @@
 #!/bin/csh -ef
 
-#SBATCH --array=1-864%100
-##SBATCH --cpus-per-task=3
+#SBATCH --array=1-608%100
 #SBATCH --mem=1g
-##SBATCH --exclude=compute-[001-008,012]
-#SBATCH --output=Josh-results/slurm-%j.out
-#SBATCH --error=Josh-results/slurm-%j.err
+#SBATCH --output=Josh-results/haplohseq-%A_%a.out
+#SBATCH --error=Josh-results/haplohseq-%A_%a.err
 
 # Dummy value for testing outside SLURM env
 if ( ! $?SLURM_ARRAY_TASK_ID ) then

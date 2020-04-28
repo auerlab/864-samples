@@ -1,6 +1,6 @@
 #!/bin/csh -ef
 
-#SBATCH --array=1-3
+#SBATCH --array=1-22
 #SBATCH --cpus-per-task=3
 #SBATCH --mem=1g
 
