@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+# haplohseq needs an uncompresed VCF input, so we might as well unpack it
+# before running vcf2hap and avoid uncompressing the .xz twice
+cd Josh-results
+for file in *.vcf.xz; do
+    echo $file
+    if [ ! -e ${file%.xz} ]; then
+	printf "Uncompressing VCF for vcf2hap and haplohseq...\n"
+	if ! unxz --keep $file; then
+	    printf "Failed to unpack $file, moving to Broken-xz...\n"
+	    mkdir -p Broken-xz
+	    mv $file Broken-xz
+	fi
+    fi
+done

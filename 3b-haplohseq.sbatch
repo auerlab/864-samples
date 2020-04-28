@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#SBATCH --array=1-864%100
+#SBATCH --array=1-769%100
 #SBATCH --mem=1g
 #SBATCH --output=SLURM-outputs/haplohseq-%A_%a.out
 #SBATCH --error=SLURM-outputs/haplohseq-%A_%a.err
@@ -18,7 +18,7 @@ cd $vcf_dir
 output_dir=Haplo-output
 mkdir -p $output_dir
 
-filenames=(`ls *.vcf.xz`)
+filenames=(`ls *.vcf`)
 filename=${filenames[$SLURM_ARRAY_TASK_ID]}
 filename_prefix=`echo $filename | cut -d - -f 1`
 printf "$filename $filename_prefix $output_dir\n"
@@ -32,19 +32,8 @@ which vcf2hap haplohseq
 printf "\nSTEP 1: GENERATING HAPLOTYPE FILES...\n"
 
 if [ ! -e $filename_prefix-ad.hap ]; then
-    # haplohseq needs a raw VCF input, so we might as well unpack it now
-    # and avoid uncompressing the .xz twice
-    if [ ! -e $filename_prefix-ad.vcf ]; then
-	printf "Uncompressing VCF for vcf2hap and haplohseq...\n"
-	if ! unxz --keep $filename_prefix-ad.vcf.xz; then
-	    mkdir -p Broken-xz
-	    mv $filename_prefix-ad.vcf.xz Broken-xz
-	    exit 1
-	fi
-    fi
     printf "Generating .hap file...\n"
-    vcf2hap $filename_prefix \
-	< $filename_prefix-ad.vcf > $filename_prefix-ad.hap
+    vcf2hap $filename_prefix < $filename > $filename_prefix-ad.hap
 fi
 
 # Identify allelic imbalance (AI) given a tumor
@@ -64,7 +53,7 @@ if [ -e $output_dir/$filename_prefix.posterior.dat ]; then
     printf "haplohseq already done.\n"
 else
     time haplohseq \
-	--vcf $filename_prefix-ad.vcf \
+	--vcf $filename \
 	--phased $filename_prefix-ad.hap \
 	--event_prevalence 0.1 \
 	-d $output_dir \

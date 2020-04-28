@@ -1,22 +1,22 @@
-#!/bin/csh -ef
+#!/usr/bin/env bash
 
-#SBATCH --array=1-608%100
+#SBATCH --array=1-741%100
 #SBATCH --mem=1g
 #SBATCH --output=SLURM-outputs/event-filter-%A_%a.out
 #SBATCH --error=SLURM-outputs/event-filter-%A_%a.err
 
+set -e
+
 # Dummy value for testing outside SLURM env
-if ( ! $?SLURM_ARRAY_TASK_ID ) then
-    setenv SLURM_ARRAY_TASK_ID 1
-endif
+: ${SLURM_ARRAY_TASK_ID:=1}
 
 # Samples from Josh
-set event_dir=Josh-results/Haplo-output
+event_dir=Josh-results/Haplo-output
 cd $event_dir
-set filenames=(`ls *.events.dat`)
+filenames=(`ls *.events.dat`)
 
-set filename=$filenames[$SLURM_ARRAY_TASK_ID]
-set filename_3m="3m/$filename"
+filename=${filenames[$SLURM_ARRAY_TASK_ID]}
+filename_3m="3m/$filename"
 
 printf "$filename $filename_3m\n"
 
@@ -25,17 +25,29 @@ mkdir -p 3m
 # (1) Remove any events < 3Mb in length.
 # Keep header on first line
 awk 'NR == 1 || $3 - $2 >= 3000000 { print $0 }' $filename > $filename_3m
-exit
 
-if [ $(wc -l $filename_3m) = 1 ]; then
+# (2) Remove any events that overlap with known germ-line events as defined in the attached.
+# Sasha in Paul's lab suggests 50% reciprocal overlap as the criteria. Here is the relevant
+# bedtools commands
+nogerm=${filename%.dat}-nogerm.dat
+bedtools intersect -a $filename -b ../../hg38gains.all.autosomes.bed \
+    -wa -wb -f 0.5 -r > $nogerm
+if [ $(wc -l $nogerm | awk '{ print $1 }') = 0 ]; then
+    rm $nogerm
+fi
+
+# Remove output files that are just a header line
+if [ $(wc -l $filename_3m | awk '{ print $1 }') = 1 ]; then
     rm $filename_3m
 else
-    # (2) Remove any events that overlap with known germ-line events as defined in the attached.
-    # Sasha in Paul's lab suggests 50% reciprocal overlap as the criteria. Here is the relevant
-    # bedtools command:
+    # Filter germline from 3m trimmed events
+    nogerm=${filename_3m%.dat}-nogerm.dat
     bedtools intersect -a $filename_3m -b ../../hg38gains.all.autosomes.bed \
-	-wa -wb -f 0.5 -r > $filename_3m:r-nogerm.dat
-endif
+	-wa -wb -f 0.5 -r > $nogerm
+    if [ $(wc -l $nogerm | awk '{ print $1 }') = 0 ]; then
+	rm $nogerm
+    fi
+fi
 exit
 
 # (3) For any remaining events, check the "median depth" as we discussed last
