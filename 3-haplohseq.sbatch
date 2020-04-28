@@ -1,80 +1,82 @@
-#!/bin/csh -ef
+#!/usr/bin/env bash
 
-#SBATCH --array=1-608%100
+#SBATCH --array=1-864%100
 #SBATCH --mem=1g
-#SBATCH --output=Josh-results/haplohseq-%A_%a.out
-#SBATCH --error=Josh-results/haplohseq-%A_%a.err
+#SBATCH --output=SLURM-outputs/haplohseq-%A_%a.out
+#SBATCH --error=SLURM-outputs/haplohseq-%A_%a.err
+
+# Exit on any failed command
+set -e
 
 # Dummy value for testing outside SLURM env
-if ( ! $?SLURM_ARRAY_TASK_ID ) then
-    setenv SLURM_ARRAY_TASK_ID 1
-endif
+: ${SLURM_ARRAY_TASK_ID:=1}
 
-# Samples from Josh
-set vcf_dir=Josh-results
+# ad2vcf outputs from Josh
+vcf_dir=Josh-results
 cd $vcf_dir
-set filenames=(`ls *.vcf.xz`)
 
-# set samples=(`ls ../../SRR6990379/*.cram | cut -d / -f 4 | cut -d . -f 1`)
-# set sample=$samples[$SLURM_ARRAY_TASK_ID]
-# set vcf_dir=10058
-
-set filename=$filenames[$SLURM_ARRAY_TASK_ID]
-set filename_prefix=`echo $filename | cut -d - -f 1`
-set output_dir=Haplo-output
-
-printf "$filename $filename_prefix $output_dir\n"
-
+output_dir=Haplo-output
 mkdir -p $output_dir
 
-set path=(../../../local/bin $path)
-echo $PATH
+filenames=(`ls *.vcf.xz`)
+filename=${filenames[$SLURM_ARRAY_TASK_ID]}
+filename_prefix=`echo $filename | cut -d - -f 1`
+printf "$filename $filename_prefix $output_dir\n"
+
+# ../../../local/bin version should be built with portable optimizations
+# On FreeBSD, can also use ports version optimized for each compute node
+export PATH=../../../local/bin:$PATH
 which vcf2hap haplohseq
 
-rm -f $filename_prefix-ad.hap
 # Generate hap file from VCF
-printf "\nSTEP 2: GENERATING HAPLOTYPE FILES...\n"
-if ( ! -e $filename_prefix-ad.hap ) then
-    if ( ! -e $filename_prefix-ad.vcf ) then
+printf "\nSTEP 1: GENERATING HAPLOTYPE FILES...\n"
+
+if [ ! -e $filename_prefix-ad.hap ]; then
+    # haplohseq needs a raw VCF input, so we might as well unpack it now
+    # and avoid uncompressing the .xz twice
+    if [ ! -e $filename_prefix-ad.vcf ]; then
 	printf "Uncompressing VCF for vcf2hap and haplohseq...\n"
-	unxz --keep $filename_prefix-ad.vcf.xz
-    endif
+	if ! unxz --keep $filename_prefix-ad.vcf.xz; then
+	    mkdir -p Broken-xz
+	    mv $filename_prefix-ad.vcf.xz Broken-xz
+	    exit 1
+	fi
+    fi
     printf "Generating .hap file...\n"
-    vcf2hap $filename_prefix < $filename_prefix-ad.vcf > $filename_prefix-ad.hap
-endif
+    vcf2hap $filename_prefix \
+	< $filename_prefix-ad.vcf > $filename_prefix-ad.hap
+fi
 
 # Identify allelic imbalance (AI) given a tumor
 # exome VCF file generated using the UnifiedGenotyper
 # of the GATK. This involves the following 3 steps.
 
-#printf "STEP 1: PHASING 1KG HET SITES ...\n"
-#python ../scripts/simple_phaser.py \
+# Our files are already phased
+# printf "STEP 1: PHASING 1KG HET SITES ...\n"
+# python ../scripts/simple_phaser.py \
 #  --ldmap ../ldmap/hg19.exome.ldmap \
 #  --vcf example_input/tumor_exome.vcf \
 #  -o example_output/tumor_exome
 
 printf "\nSTEP 2: IDENTIFYING REGIONS OF AI ...\n"
-if ( -e $output_dir/$filename_prefix.posterior.dat ) then
+
+if [ -e $output_dir/$filename_prefix.posterior.dat ]; then
     printf "haplohseq already done.\n"
 else
-    if ( ! -e $filename_prefix-ad.vcf ) then
-	# haplohseq needs a raw VCF input?
-	printf "Uncompressing VCF for haplohseq...\n"
-	unxz --keep $filename_prefix-ad.vcf.xz
-    endif
     time haplohseq \
 	--vcf $filename_prefix-ad.vcf \
 	--phased $filename_prefix-ad.hap \
 	--event_prevalence 0.1 \
 	-d $output_dir \
 	-p $filename_prefix
-endif
+fi
 
 # Save space
 # rm -f $filename_prefix-ad.vcf $filename_prefix-ad.hap
 exit 0
 
-if ( -e $output_dir/${filename}_haplohseq.png ) then
+# Should not be needed
+if [ -e $output_dir/${filename}_haplohseq.png ]; then
     printf "Plotting already done.\n"
 else
     printf "\nSTEP 3: PLOTTING HAPLOHSEQ GENOMIC AI PROFILE ...\n"
@@ -82,4 +84,4 @@ else
 	--file $output_dir/$filename_prefix.posterior.dat \
 	--out $output_dir \
 	--prefix ${filename}_haplohseq
-endif
+fi

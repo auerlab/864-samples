@@ -2,8 +2,8 @@
 
 #SBATCH --array=1-608%100
 #SBATCH --mem=1g
-#SBATCH --output=Josh-results/event-filter-%A_%a.out
-#SBATCH --error=Josh-results/event-filter-%A_%a.err
+#SBATCH --output=SLURM-outputs/event-filter-%A_%a.out
+#SBATCH --error=SLURM-outputs/event-filter-%A_%a.err
 
 # Dummy value for testing outside SLURM env
 if ( ! $?SLURM_ARRAY_TASK_ID ) then

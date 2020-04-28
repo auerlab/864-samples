@@ -48,7 +48,8 @@ if [ -e /raid-01/UITS/bacon/Pkgsrc/pkg-2019Q4 ]; then
     module load /raid-01/UITS/bacon/Pkgsrc/pkg-2019Q4/etc/modulefiles/pkgsrc/2019Q4
 fi
 
-# Use latest local build
+# ../../../local/bin version should be built with portable optimizations
+# On FreeBSD, can also use ports version optimized for each compute node
 export PATH=../../local/bin:$PATH
 which bcftools vcf-split
 
